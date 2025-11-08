@@ -16,6 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { supabase } from '../services/supabase';
+import { BackendAPI, ActivityLogResponse } from '../services/backend-api.service';
+import { Task, ActivityLog, ActivityAction } from '../types/database.types';
+import StatusDropdown from '../components/StatusDropdown';
+import EditTaskDialog from '../components/EditTaskDialog';
 import AssignTaskDialog from '../components/AssignTaskDialog';
 import EditTaskDialog from '../components/EditTaskDialog';
 import StatusDropdown from '../components/StatusDropdown';
@@ -65,7 +71,7 @@ export default function TaskDetailsScreen() {
   const taskId = Array.isArray(params.taskId) ? params.taskId[0] : params.taskId;
 
   const [task, setTask] = useState<Task | null>(null);
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [activities, setActivities] = useState<ActivityLogResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
@@ -109,6 +115,18 @@ export default function TaskDetailsScreen() {
   const fetchActivityLog = async () => {
     try {
       console.log('Fetching activity logs for task:', taskId);
+      
+      // Try backend API first for enriched data
+      try {
+        const data = await BackendAPI.getTaskActivityLogs(taskId as string);
+        console.log('Activity logs received from backend:', data?.length || 0, 'entries');
+        setActivities(data || []);
+        return;
+      } catch (backendError) {
+        console.log('Backend API failed, falling back to Supabase:', backendError);
+      }
+      
+      // Fallback to direct Supabase query
       const { data, error } = await supabase
         .from('activity_logs')
         .select('*')
@@ -119,9 +137,8 @@ export default function TaskDetailsScreen() {
         console.error('Error fetching activity logs:', error);
         throw error;
       }
-
-      console.log('Activity logs received:', data?.length || 0, 'entries');
-      console.log('Activity data:', JSON.stringify(data, null, 2));
+      
+      console.log('Activity logs received from Supabase:', data?.length || 0, 'entries');
       setActivities(data || []);
     } catch (error) {
       console.error('Error fetching activity log:', error);
@@ -139,13 +156,17 @@ export default function TaskDetailsScreen() {
 
       if (error) throw error;
 
-      // Log the status change
-      await supabase.from('activity_logs').insert({
-        task_id: task.id,
-        action: 'status_changed',
-        old_value: JSON.stringify({ status: task.status }),
-        new_value: JSON.stringify({ status: newStatus }),
-      });
+      // Log the status change (catch 403 if RLS not configured)
+      try {
+        await supabase.from('activity_logs').insert({
+          task_id: task.id,
+          action: 'status_changed',
+          old_value: JSON.stringify({ status: task.status }),
+          new_value: JSON.stringify({ status: newStatus }),
+        });
+      } catch (logError) {
+        console.warn('Could not log activity (check RLS policies):', logError);
+      }
 
       setTask({ ...task, status: newStatus as any });
       fetchActivityLog(); // Refresh activity log
@@ -165,21 +186,24 @@ export default function TaskDetailsScreen() {
 
       if (error) throw error;
 
-      // Activity logging disabled - causing enum errors
-      // TODO: Fix activity_action enum in database to match all possible actions
-      // await supabase.from('activity_logs').insert({
-      //   task_id: task.id,
-      //   user_id: user?.id,
-      //   action: 'task_updated',
-      //   old_value: JSON.stringify({
-      //     title: task.title,
-      //     description: task.description,
-      //     priority: task.priority,
-      //     progress: task.progress,
-      //     due_date: task.due_date,
-      //   }),
-      //   new_value: JSON.stringify(updates),
-      // });
+      // Log the update (catch 403 if RLS not configured)
+      try {
+        await supabase.from('activity_logs').insert({
+          task_id: task.id,
+          user_id: user?.id,
+          action: 'task_updated',
+          old_value: JSON.stringify({
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            progress: task.progress,
+            due_date: task.due_date,
+          }),
+          new_value: JSON.stringify(updates),
+        });
+      } catch (logError) {
+        console.warn('Could not log activity (check RLS policies):', logError);
+      }
 
       setTask({ ...task, ...updates } as Task);
       fetchActivityLog();
@@ -205,27 +229,35 @@ export default function TaskDetailsScreen() {
 
       if (error) throw error;
 
-      // Log the assignment
-      await supabase.from('activity_logs').insert({
-        task_id: task.id,
-        user_id: user?.id,
-        action: 'task_assigned',
-        old_value: JSON.stringify({
-          assigned_to_user: task.assigned_to_user,
-          assigned_to_group: task.assigned_to_group,
-        }),
-        new_value: JSON.stringify(updates),
-      });
-
-      // Also create task assignment record
-      if (userId || groupId) {
-        await supabase.from('task_assignments').insert({
+      // Log the assignment (catch 403 if RLS not configured)
+      try {
+        await supabase.from('activity_logs').insert({
           task_id: task.id,
-          assigned_from: user?.id,
-          assigned_to_user: userId,
-          assigned_to_group: groupId,
-          assignment_type: 'manual',
+          user_id: user?.id,
+          action: 'task_assigned',
+          old_value: JSON.stringify({
+            assigned_to_user: task.assigned_to_user,
+            assigned_to_group: task.assigned_to_group,
+          }),
+          new_value: JSON.stringify(updates),
         });
+      } catch (logError) {
+        console.warn('Could not log activity (check RLS policies):', logError);
+      }
+
+      // Also create task assignment record (catch errors)
+      if (userId || groupId) {
+        try {
+          await supabase.from('task_assignments').insert({
+            task_id: task.id,
+            assigned_from: user?.id,
+            assigned_to_user: userId,
+            assigned_to_group: groupId,
+            assignment_type: 'manual',
+          });
+        } catch (assignError) {
+          console.warn('Could not create assignment record:', assignError);
+        }
       }
 
       setTask({ ...task, ...updates } as Task);
@@ -249,6 +281,21 @@ export default function TaskDetailsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Log deletion before deleting (catch 403 if RLS not configured)
+              try {
+                await supabase.from('activity_logs').insert({
+                  task_id: task.id,
+                  user_id: user?.id,
+                  action: 'task_deleted',
+                  old_value: JSON.stringify({
+                    title: task.title,
+                    status: task.status,
+                  }),
+                });
+              } catch (logError) {
+                console.warn('Could not log deletion (check RLS policies):', logError);
+              }
+
               const { error } = await supabase
                 .from('tasks')
                 .delete()
@@ -302,9 +349,12 @@ export default function TaskDetailsScreen() {
     return value;
   };
 
-  const getActivityDescription = (activity: ActivityLog): string => {
+  const getActivityDescription = (activity: ActivityLogResponse | ActivityLog): string => {
     const oldValue = parseJsonValue(activity.old_value);
     const newValue = parseJsonValue(activity.new_value);
+
+    // If backend provided user info, use it
+    const userName = ('user' in activity && activity.user?.display_name) || 'Someone';
 
     switch (activity.action) {
       case 'status_changed':
@@ -312,37 +362,49 @@ export default function TaskDetailsScreen() {
       case 'task_updated':
         const changes: string[] = [];
         if (newValue?.title && oldValue?.title !== newValue?.title) {
-          changes.push('title');
+          changes.push(`title: "${oldValue?.title}" → "${newValue?.title}"`);
         }
         if (newValue?.description !== undefined && oldValue?.description !== newValue?.description) {
-          changes.push('description');
+          const oldDesc = oldValue?.description || '(empty)';
+          const newDesc = newValue?.description || '(empty)';
+          changes.push(`description: "${oldDesc.substring(0, 30)}..." → "${newDesc.substring(0, 30)}..."`);
         }
         if (newValue?.priority && oldValue?.priority !== newValue?.priority) {
-          changes.push(`priority (${oldValue?.priority} → ${newValue?.priority})`);
+          changes.push(`priority: ${oldValue?.priority} → ${newValue?.priority}`);
         }
         if (newValue?.progress !== undefined && oldValue?.progress !== newValue?.progress) {
-          changes.push(`progress (${oldValue?.progress}% → ${newValue?.progress}%)`);
+          changes.push(`progress: ${oldValue?.progress}% → ${newValue?.progress}%`);
         }
         if (newValue?.due_date !== undefined && oldValue?.due_date !== newValue?.due_date) {
-          changes.push('due date');
+          changes.push(`due date: ${oldValue?.due_date || 'none'} → ${newValue?.due_date || 'none'}`);
         }
-        return changes.length > 0
-          ? `Updated: ${changes.join(', ')}`
+        return changes.length > 0 
+          ? changes.join('\n')
           : 'Task details were updated';
       case 'task_assigned':
-        if (newValue?.assigned_to_user) {
-          return 'Task assigned to a user';
+        if (newValue?.assigned_to_user && oldValue?.assigned_to_user) {
+          return 'Reassigned to different user';
+        } else if (newValue?.assigned_to_user) {
+          return 'Assigned to a user';
+        } else if (newValue?.assigned_to_group && oldValue?.assigned_to_group) {
+          return 'Reassigned to different group';
         } else if (newValue?.assigned_to_group) {
-          return 'Task assigned to a group';
+          return 'Assigned to a group';
         } else {
-          return 'Task unassigned';
+          return oldValue?.assigned_to_user || oldValue?.assigned_to_group 
+            ? 'Task unassigned' 
+            : 'Assignment changed';
         }
       case 'task_created':
-        return newValue?.title ? `Task "${newValue.title}" was created` : 'Task was created';
+        return newValue?.title 
+          ? `Task created with title: "${newValue.title}"${newValue.priority ? `\nPriority: ${newValue.priority}` : ''}${newValue.status ? `\nStatus: ${newValue.status}` : ''}`
+          : 'Task was created';
       case 'task_deleted':
-        return oldValue?.title ? `Task "${oldValue.title}" was deleted` : 'Task was deleted';
+        return oldValue?.title 
+          ? `Task deleted: "${oldValue.title}"${oldValue.status ? `\nWas in status: ${oldValue.status}` : ''}`
+          : 'Task was deleted';
       default:
-        return ACTION_LABELS[activity.action] || 'Activity performed';
+        return (ACTION_LABELS as any)[activity.action] || 'Activity performed';
     }
   };
 
@@ -499,18 +561,24 @@ export default function TaskDetailsScreen() {
                   {/* Activity icon */}
                   <View style={styles.timelineIcon}>
                     <Text style={styles.activityIcon}>
-                      {ACTION_ICONS[activity.action] || '📝'}
+                      {(ACTION_ICONS as any)[activity.action] || '📝'}
                     </Text>
                   </View>
 
                   {/* Activity content */}
                   <View style={styles.timelineContent}>
                     <Text style={styles.activityTitle}>
-                      {ACTION_LABELS[activity.action]}
+                      {(ACTION_LABELS as any)[activity.action] || activity.action}
                     </Text>
                     <Text style={styles.activityDescription}>
                       {getActivityDescription(activity)}
                     </Text>
+                    {/* Show user who performed the action if available */}
+                    {'user' in activity && activity.user && (
+                      <Text style={styles.activityUser}>
+                        by {activity.user.display_name || 'Unknown'}
+                      </Text>
+                    )}
                     <Text style={styles.activityTime}>
                       {formatDateTime(activity.timestamp)}
                     </Text>
@@ -738,6 +806,12 @@ const styles = StyleSheet.create({
   activityTime: {
     fontSize: 12,
     color: '#999',
+  },
+  activityUser: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '500',
+    marginTop: 2,
   },
   emptyText: {
     fontSize: 14,
