@@ -23,7 +23,8 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signIn(email, password);
-      // AuthContext will handle redirect via app/index.tsx
+      // Navigate to tasks after successful login
+      router.replace('/(tabs)/tasks' as any);
     } catch (error: any) {
       Alert.alert('Login Error', error.message);
     } finally {
