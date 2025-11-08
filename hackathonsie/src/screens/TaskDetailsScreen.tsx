@@ -3,17 +3,18 @@
  * Shows full task information and activity timeline
  */
 
-import React, { useState, useEffect } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
   Alert,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../services/supabase';
@@ -22,7 +23,11 @@ import { Task, ActivityLog, ActivityAction } from '../types/database.types';
 import StatusDropdown from '../components/StatusDropdown';
 import EditTaskDialog from '../components/EditTaskDialog';
 import AssignTaskDialog from '../components/AssignTaskDialog';
+import EditTaskDialog from '../components/EditTaskDialog';
+import StatusDropdown from '../components/StatusDropdown';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabase';
+import { ActivityAction, ActivityLog, Task } from '../types/database.types';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
@@ -64,6 +69,7 @@ export default function TaskDetailsScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams();
   const taskId = Array.isArray(params.taskId) ? params.taskId[0] : params.taskId;
+
   const [task, setTask] = useState<Task | null>(null);
   const [activities, setActivities] = useState<ActivityLogResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,10 +92,21 @@ export default function TaskDetailsScreen() {
         .eq('id', taskId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Task was deleted or not found
+        if (error.code === 'PGRST116') {
+          console.log('Task was deleted');
+          Alert.alert('Task Deleted', 'This task has been deleted.', [
+            { text: 'OK', onPress: () => router.back() }
+          ]);
+          return;
+        }
+        throw error;
+      }
       setTask(data);
     } catch (error) {
       console.error('Error fetching task:', error);
+      Alert.alert('Error', 'Failed to load task details');
     } finally {
       setLoading(false);
     }
@@ -286,7 +303,10 @@ export default function TaskDetailsScreen() {
 
               if (error) throw error;
 
-              router.back();
+              // Navigate back after successful deletion
+              Alert.alert('Success', 'Task deleted successfully', [
+                { text: 'OK', onPress: () => router.back() }
+              ]);
             } catch (error) {
               console.error('Error deleting task:', error);
               Alert.alert('Error', 'Failed to delete task');

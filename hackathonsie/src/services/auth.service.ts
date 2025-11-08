@@ -100,6 +100,17 @@ export class AuthService {
   }
 
   /**
+   * Check if user is super admin
+   */
+  static isSuperAdmin(user: User | null): boolean {
+    if (!user) return false;
+
+    // Check both app_metadata and raw_app_meta_data for compatibility
+    const appMetaData = (user.app_metadata || user.user_metadata) as any;
+    return appMetaData?.role === 'super-admin';
+  }
+
+  /**
    * Listen to auth state changes
    */
   static onAuthStateChange(callback: (session: Session | null) => void) {

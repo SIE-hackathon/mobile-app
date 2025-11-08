@@ -2,28 +2,30 @@
  * Dashboard Screen
  */
 
-import React, { useState, useEffect } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  RefreshControl,
   ActivityIndicator,
   Alert,
-  StatusBar,
   Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useTasks } from '../hooks/useTasks';
-import { useAuth } from '../context/AuthContext';
-import { Task, TaskStatus } from '../types/database.types';
-import { PRIORITY_COLORS } from '../constants';
-import { formatDate, isOverdue } from '../utils/date.utils';
+import CreateTaskDialog from '../components/CreateTaskDialog';
+import GroupsDisplay from '../components/GroupsDisplay';
 import SettingsDropdown from '../components/SettingsDropdown';
 import StatusDropdown from '../components/StatusDropdown';
-import { supabase } from '../services/supabase';
+import { PRIORITY_COLORS } from '../constants';
+import { useAuth } from '../context/AuthContext';
+import { useTasks } from '../hooks/useTasks';
+import { AuthService } from '../services/auth.service';
+import { TaskService } from '../services/task.service';
+import { Task, TaskStatus } from '../types/database.types';
+import { formatDate, isOverdue } from '../utils/date.utils';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
@@ -39,6 +41,8 @@ export default function DashboardScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [createDialogVisible, setCreateDialogVisible] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalTasks: 0,
     completedTasks: 0,
@@ -47,8 +51,21 @@ export default function DashboardScreen() {
   });
 
   useEffect(() => {
+    if (user) {
+      setIsSuperAdmin(AuthService.isSuperAdmin(user));
+    }
+  }, [user]);
+
+  useEffect(() => {
     calculateStats();
   }, [tasks]);
+
+  // Refresh tasks when screen comes into focus (e.g., after deleting a task)
+  useFocusEffect(
+    useCallback(() => {
+      fetchTasks();
+    }, [fetchTasks])
+  );
 
   const calculateStats = () => {
     const total = tasks.length;
@@ -70,6 +87,24 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
+  const handleCreateTask = async (taskData: {
+    title: string;
+    description: string;
+    priority: any;
+    due_date: string | null;
+    group_id: string | null;
+  }) => {
+    try {
+      // Remove group_id as it's not in the tasks table
+      const { group_id, ...taskPayload } = taskData;
+      await TaskService.createTask(taskPayload as any);
+      await fetchTasks();
+      Alert.alert('Success', 'Task created successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to create task');
+    }
+  };
+
   const handleProfilePress = () => {
     router.push('/(tabs)/profile' as any);
   };
@@ -78,9 +113,13 @@ export default function DashboardScreen() {
     Alert.alert('Coming Soon', 'Theme settings will be available soon!');
   };
 
+  const handleAdminPress = () => {
+    router.push('/super-admin-users' as any);
+  };
+
   const handleLogout = async () => {
     console.log('Logout button pressed');
-    
+
     Alert.alert(
       'Log Out',
       'Are you sure you want to log out?',
@@ -138,9 +177,11 @@ export default function DashboardScreen() {
     const overdue = isOverdue(item.due_date);
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.taskCard}
-        onPress={() => router.push(`/task-details?taskId=${item.id}`)}
+        onPress={() => {
+          router.push(`/task-details?taskId=${item.id}` as any);
+        }}
         activeOpacity={0.7}
       >
         <View style={styles.taskHeader}>
@@ -148,7 +189,7 @@ export default function DashboardScreen() {
             {item.title}
           </Text>
           <View style={styles.taskActions}>
-            <StatusDropdown 
+            <StatusDropdown
               currentStatus={item.status}
               onStatusChange={(newStatus) => handleStatusChange(item.id, newStatus)}
             />
@@ -171,7 +212,7 @@ export default function DashboardScreen() {
           <View style={[styles.priorityBadge, { backgroundColor: PRIORITY_COLORS[item.priority] }]}>
             <Text style={styles.priorityText}>{item.priority}</Text>
           </View>
-          
+
           {item.due_date && (
             <View style={styles.dueDateContainer}>
               <Text style={styles.calendarIcon}>📅</Text>
@@ -201,51 +242,87 @@ export default function DashboardScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Dashboard</Text>
-        <SettingsDropdown
-          onProfilePress={handleProfilePress}
-          onThemePress={handleThemePress}
-          onLogoutPress={handleLogout}
-        />
-      </View>
-
-      {/* Statistics Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.totalTasks}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
-
-          <View style={[styles.statCard, styles.successCard]}>
-            <Text style={[styles.statNumber, styles.successColor]}>{stats.completedTasks}</Text>
-            <Text style={styles.statLabel}>Completed</Text>
-          </View>
-
-          <View style={[styles.statCard, styles.primaryCard]}>
-            <Text style={[styles.statNumber, styles.primaryColor]}>{stats.inProgressTasks}</Text>
-            <Text style={styles.statLabel}>In Progress</Text>
-          </View>
-
-          <View style={[styles.statCard, styles.dangerCard]}>
-            <Text style={[styles.statNumber, styles.dangerColor]}>{stats.overdueTasks}</Text>
-            <Text style={styles.statLabel}>Overdue</Text>
-          </View>
+        <View style={styles.headerActions}>
+          {isSuperAdmin && (
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={handleAdminPress}
+            >
+              <Text style={styles.adminIcon}>👑</Text>
+            </TouchableOpacity>
+          )}
+          <SettingsDropdown
+            onProfilePress={handleProfilePress}
+            onThemePress={handleThemePress}
+            onLogoutPress={handleLogout}
+          />
         </View>
       </View>
-      
-      <FlatList
-        data={tasks}
-        keyExtractor={(item) => item.id}
-        renderItem={renderTask}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.centered}>
-            <Text style={styles.emptyText}>No tasks yet</Text>
+
+      <ScrollView style={styles.scrollView}>
+        {/* Groups Section */}
+        <GroupsDisplay />
+
+        {/* Statistics Cards */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats.totalTasks}</Text>
+              <Text style={styles.statLabel}>Total</Text>
+            </View>
+
+            <View style={[styles.statCard, styles.successCard]}>
+              <Text style={[styles.statNumber, styles.successColor]}>{stats.completedTasks}</Text>
+              <Text style={styles.statLabel}>Completed</Text>
+            </View>
+
+            <View style={[styles.statCard, styles.primaryCard]}>
+              <Text style={[styles.statNumber, styles.primaryColor]}>{stats.inProgressTasks}</Text>
+              <Text style={styles.statLabel}>In Progress</Text>
+            </View>
+
+            <View style={[styles.statCard, styles.dangerCard]}>
+              <Text style={[styles.statNumber, styles.dangerColor]}>{stats.overdueTasks}</Text>
+              <Text style={styles.statLabel}>Overdue</Text>
+            </View>
           </View>
-        }
+        </View>
+
+        <View style={styles.tasksHeader}>
+          <Text style={styles.tasksTitle}>Recent Tasks</Text>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+        ) : tasks.filter(t => t.status !== 'done').length > 0 ? (
+          tasks
+            .filter(t => t.status !== 'done')
+            .map((task, index) => (
+              <View key={task.id || index}>
+                {renderTask({ item: task })}
+              </View>
+            ))
+        ) : (
+          <View style={styles.centered}>
+            <Text style={styles.emptyText}>No active tasks</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      <CreateTaskDialog
+        visible={createDialogVisible}
+        onClose={() => setCreateDialogVisible(false)}
+        onCreate={handleCreateTask}
       />
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setCreateDialogVisible(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -443,4 +520,68 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '500',
   },
+  scrollView: {
+    flex: 1,
+  },
+  addButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tasksHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  tasksTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
+  },
+  loader: {
+    marginVertical: 24,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabText: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: '300',
+    lineHeight: 36,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  adminButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#fff3cd',
+  },
+  adminIcon: {
+    fontSize: 18,
+  },
 });
+

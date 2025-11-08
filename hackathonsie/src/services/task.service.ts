@@ -3,17 +3,23 @@
  * Handles all task-related operations with Supabase
  */
 
+import { Task, TaskInsert, TaskStatus, TaskUpdate } from '../types/database.types';
 import { supabase } from './supabase';
-import { Task, TaskInsert, TaskUpdate, TaskStatus, TaskPriority } from '../types/database.types';
 
 export class TaskService {
   /**
    * Fetch all tasks for the current user
    */
   static async fetchUserTasks(): Promise<Task[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) throw new Error('User not authenticated');
+
+    // Only fetch tasks created by the current user
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .eq('created_by', user.id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -53,7 +59,7 @@ export class TaskService {
    */
   static async createTask(task: TaskInsert): Promise<Task> {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) throw new Error('User not authenticated');
 
     const taskData = {
@@ -107,15 +113,6 @@ export class TaskService {
    * Update task status
    */
   static async updateTaskStatus(taskId: string, status: TaskStatus): Promise<Task> {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // Get old status first
-    const { data: oldTask } = await supabase
-      .from('tasks')
-      .select('status')
-      .eq('id', taskId)
-      .single();
-
     const result = await this.updateTask(taskId, { status });
 
     // Log status change (catch 403 if RLS not configured)
@@ -147,8 +144,6 @@ export class TaskService {
    * Delete a task
    */
   static async deleteTask(taskId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-
     // Get task info before deleting
     const { data: task } = await supabase
       .from('tasks')
@@ -156,18 +151,19 @@ export class TaskService {
       .eq('id', taskId)
       .single();
 
-    // Log deletion
-    if (task) {
-      await supabase.from('activity_logs').insert({
-        task_id: taskId,
-        user_id: user?.id,
-        action: 'task_deleted',
-        old_value: {
-          title: task.title,
-          status: task.status,
-        },
-      });
-    }
+    // Activity logging disabled to prevent duplicates
+    // if (task) {
+    //   const { data: { user } } = await supabase.auth.getUser();
+    //   await supabase.from('activity_logs').insert({
+    //     task_id: taskId,
+    //     user_id: user?.id,
+    //     action: 'task_deleted',
+    //     old_value: {
+    //       title: task.title,
+    //       status: task.status,
+    //     },
+    //   });
+    // }
 
     const { error } = await supabase
       .from('tasks')
@@ -182,7 +178,7 @@ export class TaskService {
    */
   static async fetchAssignedTasks(): Promise<Task[]> {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) throw new Error('User not authenticated');
 
     const { data, error } = await supabase
