@@ -4,6 +4,7 @@
  */
 
 import { Tabs, Redirect } from 'expo-router';
+import { Text } from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
 
 export default function TabsLayout() {
@@ -25,21 +26,21 @@ export default function TabsLayout() {
         name="tasks" 
         options={{ 
           title: 'Tasks',
-          tabBarIcon: () => '📋',
+          tabBarIcon: () => <Text>📋</Text>,
         }} 
       />
       <Tabs.Screen 
         name="kanban" 
         options={{ 
           title: 'Kanban',
-          tabBarIcon: () => '📊',
+          tabBarIcon: () => <Text>📊</Text>,
         }} 
       />
       <Tabs.Screen 
         name="profile" 
         options={{ 
           title: 'Profile',
-          tabBarIcon: () => '👤',
+          tabBarIcon: () => <Text>👤</Text>,
         }} 
       />
     </Tabs>

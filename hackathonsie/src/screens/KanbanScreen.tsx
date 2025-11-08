@@ -1,14 +1,16 @@
 /**
  * Kanban Board Screen
- * Displays tasks in columns by status
+ * Displays tasks in columns by status with tab navigation
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, StatusBar, Platform } from 'react-native';
 import { useTasks } from '../hooks/useTasks';
 import { Task, TaskStatus } from '../types/database.types';
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
 import { formatDate, isOverdue } from '../utils/date.utils';
+
+const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
 const STATUS_COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'todo', label: 'To Do' },
@@ -20,6 +22,7 @@ const STATUS_COLUMNS: { status: TaskStatus; label: string }[] = [
 export default function KanbanScreen() {
   const { tasks, loading, fetchTasks, updateTaskStatus } = useTasks();
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<TaskStatus>('todo');
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -82,37 +85,74 @@ export default function KanbanScreen() {
     const columnTasks = getTasksByStatus(status);
 
     return (
-      <View key={status} style={styles.column}>
-        <View style={[styles.columnHeader, { backgroundColor: STATUS_COLORS[status] }]}>
-          <Text style={styles.columnTitle}>{label}</Text>
-          <View style={styles.columnBadge}>
-            <Text style={styles.columnCount}>{columnTasks.length}</Text>
+      <View key={status} style={styles.columnContent}>
+        {columnTasks.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyText}>No {label.toLowerCase()} tasks</Text>
           </View>
-        </View>
-
-        <ScrollView style={styles.columnContent} showsVerticalScrollIndicator={false}>
-          {columnTasks.length === 0 ? (
-            <Text style={styles.emptyText}>No tasks</Text>
-          ) : (
-            columnTasks.map(renderTask)
-          )}
-        </ScrollView>
+        ) : (
+          columnTasks.map(renderTask)
+        )}
       </View>
     );
   };
 
+  const activeTasks = getTasksByStatus(activeTab);
+  const activeColumn = STATUS_COLUMNS.find(col => col.status === activeTab);
+
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Kanban Board</Text>
+      </View>
+
+      {/* Tab Navigation */}
+      <View style={styles.tabBar}>
+        {STATUS_COLUMNS.map(({ status, label }) => {
+          const taskCount = getTasksByStatus(status).length;
+          const isActive = activeTab === status;
+          
+          return (
+            <TouchableOpacity
+              key={status}
+              style={[
+                styles.tab,
+                isActive && styles.activeTab,
+                { borderBottomColor: STATUS_COLORS[status] }
+              ]}
+              onPress={() => setActiveTab(status)}
+            >
+              <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>
+                {label}
+              </Text>
+              <View style={[styles.tabBadge, { backgroundColor: STATUS_COLORS[status] }]}>
+                <Text style={styles.tabCount}>{taskCount}</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Active Column Content */}
       <ScrollView
-        horizontal
-        style={styles.board}
-        contentContainerStyle={styles.boardContent}
+        style={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
       >
-        {STATUS_COLUMNS.map(renderColumn)}
+        <View style={styles.columnContent}>
+          {activeTasks.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📋</Text>
+              <Text style={styles.emptyText}>No {activeColumn?.label.toLowerCase()} tasks</Text>
+              <Text style={styles.emptyHint}>Tap a task in another column to move it here</Text>
+            </View>
+          ) : (
+            activeTasks.map(renderTask)
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -122,72 +162,113 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    paddingTop: STATUS_BAR_HEIGHT,
   },
-  board: {
-    flex: 1,
-  },
-  boardContent: {
-    padding: 16,
-    gap: 16,
-    flexDirection: 'row',
-  },
-  column: {
-    width: 280,
+  header: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    marginRight: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  columnHeader: {
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  tabBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  columnTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  columnBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 12,
+    justifyContent: 'center',
+    paddingVertical: 12,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 6,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
   },
-  columnCount: {
-    fontSize: 12,
+  activeTab: {
+    borderBottomWidth: 3,
+  },
+  tabLabel: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  activeTabLabel: {
+    color: '#000',
+    fontWeight: '700',
+  },
+  tabBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  tabCount: {
+    fontSize: 11,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  content: {
+    flex: 1,
   },
   columnContent: {
-    flex: 1,
-    padding: 12,
+    padding: 16,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyHint: {
+    fontSize: 14,
+    color: '#bbb',
+    textAlign: 'center',
   },
   taskCard: {
     backgroundColor: '#f9f9f9',
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 12,
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: '#007AFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   taskTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#000',
-    marginBottom: 4,
+    marginBottom: 6,
+    lineHeight: 22,
   },
   taskDescription: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
-    marginBottom: 8,
+    marginBottom: 12,
+    lineHeight: 20,
   },
   taskFooter: {
     flexDirection: 'row',
@@ -195,29 +276,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   priorityBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    minWidth: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    minWidth: 24,
     alignItems: 'center',
   },
   priorityText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
   },
   dueDate: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#666',
   },
   overdue: {
     color: '#FF3B30',
     fontWeight: '600',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 20,
   },
 });

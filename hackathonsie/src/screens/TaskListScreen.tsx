@@ -12,6 +12,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTasks } from '../hooks/useTasks';
@@ -21,6 +23,8 @@ import { PRIORITY_COLORS } from '../constants';
 import { formatDate, isOverdue } from '../utils/date.utils';
 import SettingsDropdown from '../components/SettingsDropdown';
 import StatusDropdown from '../components/StatusDropdown';
+
+const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
 export default function TaskListScreen() {
   const { tasks, loading, fetchTasks, updateTaskStatus, deleteTask } = useTasks();
@@ -39,99 +43,55 @@ export default function TaskListScreen() {
   };
 
   const handleThemePress = () => {
-    // Use window.alert for web, Alert for native
-    if (typeof window !== 'undefined') {
-      window.alert('Theme settings coming soon!');
-    } else {
-      Alert.alert('Coming Soon', 'Theme settings will be available soon!');
-    }
+    Alert.alert('Coming Soon', 'Theme settings will be available soon!');
   };
 
   const handleLogout = async () => {
     console.log('Logout button pressed');
     
-    // Use window.confirm for web, Alert for native
-    const isWeb = typeof window !== 'undefined';
-    const shouldLogout = isWeb 
-      ? window.confirm('Are you sure you want to log out?')
-      : true;
-    
-    if (isWeb && !shouldLogout) {
-      console.log('Logout cancelled');
-      return;
-    }
-
-    if (!isWeb) {
-      Alert.alert(
-        'Log Out',
-        'Are you sure you want to log out?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Log Out',
-            style: 'destructive',
-            onPress: () => performLogout(),
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('Calling signOut...');
+              await signOut();
+              console.log('SignOut complete, navigating...');
+              router.replace('/' as any);
+            } catch (error: any) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to log out');
+            }
           },
-        ]
-      );
-    } else {
-      await performLogout();
-    }
-  };
-
-  const performLogout = async () => {
-    console.log('Logout confirmed');
-    try {
-      console.log('Calling signOut...');
-      await signOut();
-      console.log('SignOut complete, navigating...');
-      router.replace('/' as any);
-    } catch (error: any) {
-      console.error('Logout error:', error);
-      if (typeof window !== 'undefined') {
-        window.alert('Failed to log out: ' + error.message);
-      } else {
-        Alert.alert('Error', 'Failed to log out');
-      }
-    }
+        },
+      ]
+    );
   };
 
   const handleDeleteTask = async (taskId: string, taskTitle: string) => {
-    const isWeb = typeof window !== 'undefined';
-    const shouldDelete = isWeb 
-      ? window.confirm(`Delete "${taskTitle}"?`)
-      : true;
-    
-    if (isWeb && !shouldDelete) {
-      return;
-    }
-
-    if (!isWeb) {
-      Alert.alert(
-        'Delete Task',
-        `Are you sure you want to delete "${taskTitle}"?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await deleteTask(taskId);
-              } catch (error: any) {
-                Alert.alert('Error', 'Failed to delete task');
-              }
-            },
+    Alert.alert(
+      'Delete Task',
+      `Are you sure you want to delete "${taskTitle}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTask(taskId);
+            } catch (error: any) {
+              Alert.alert('Error', 'Failed to delete task');
+            }
           },
-        ]
-      );
-    } else {
-      try {
-        await deleteTask(taskId);
-      } catch (error: any) {
-        window.alert('Failed to delete task: ' + error.message);
-      }
-    }
+        },
+      ]
+    );
   };
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
@@ -230,6 +190,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    paddingTop: STATUS_BAR_HEIGHT,
   },
   header: {
     backgroundColor: '#fff',
