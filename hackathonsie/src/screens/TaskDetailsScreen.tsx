@@ -16,18 +16,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../services/supabase';
 import { BackendAPI, ActivityLogResponse } from '../services/backend-api.service';
 import { Task, ActivityLog, ActivityAction } from '../types/database.types';
 import StatusDropdown from '../components/StatusDropdown';
 import EditTaskDialog from '../components/EditTaskDialog';
 import AssignTaskDialog from '../components/AssignTaskDialog';
-import EditTaskDialog from '../components/EditTaskDialog';
-import StatusDropdown from '../components/StatusDropdown';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabase';
-import { ActivityAction, ActivityLog, Task } from '../types/database.types';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 

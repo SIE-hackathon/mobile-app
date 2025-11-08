@@ -113,16 +113,20 @@ export class TaskService {
    * Update task status
    */
   static async updateTaskStatus(taskId: string, status: TaskStatus): Promise<Task> {
+    // Fetch old task for activity logging
+    const oldTaskData = await this.fetchTask(taskId);
+    
     const result = await this.updateTask(taskId, { status });
 
-    // Log status change (catch 403 if RLS not configured)
-    if (oldTask && oldTask.status !== status) {
+    // Log status change
+    if (oldTaskData && oldTaskData.status !== status) {
       try {
+        const { data: { user } } = await supabase.auth.getUser();
         await supabase.from('activity_logs').insert({
           task_id: taskId,
           user_id: user?.id,
           action: 'status_changed',
-          old_value: JSON.stringify({ status: oldTask.status }),
+          old_value: JSON.stringify({ status: oldTaskData.status }),
           new_value: JSON.stringify({ status }),
         });
       } catch (logError) {

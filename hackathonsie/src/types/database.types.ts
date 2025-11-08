@@ -52,6 +52,9 @@ export interface Task {
   assigned_to_user?: string;
   assigned_to_group?: string;
   parent_task_id?: string;
+  is_subtask?: boolean;
+  subtask_count?: number;
+  completed_subtask_count?: number;
   encryption_metadata?: any;
   created_at: string;
   updated_at: string;

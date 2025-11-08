@@ -149,6 +149,52 @@ export async function getAllActivityLogs(
   return response.json();
 }
 
+/**
+ * Create a new activity log
+ */
+export async function createActivityLog(activity: any): Promise<ActivityLogResponse> {
+  try {
+    const headers = await getAuthHeader();
+    
+    const response = await fetch(
+      `${API_BASE_URL}/api/logs/`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(activity),
+      }
+    );
+
+    if (!response.ok) {
+      // Fall back to Supabase if backend fails
+      return fallbackCreateActivityLog(activity);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.warn('Backend create activity log failed, using Supabase fallback:', error);
+    return fallbackCreateActivityLog(activity);
+  }
+}
+
+/**
+ * Fallback: Create activity log directly in Supabase
+ */
+async function fallbackCreateActivityLog(activity: any): Promise<ActivityLogResponse> {
+  const { data, error } = await supabase
+    .from('activity_logs')
+    .insert([activity])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to create activity log:', error);
+    throw error;
+  }
+
+  return data;
+}
+
 // ============================================================================
 // Progress Tracking
 // ============================================================================
@@ -298,6 +344,7 @@ export const BackendAPI = {
   getRecentActivity,
   getUserActivityLogs,
   getAllActivityLogs,
+  createActivityLog,
   
   // Progress Tracking
   getTaskProgress,
