@@ -3,8 +3,8 @@
  * Handles all authentication operations with Supabase
  */
 
-import { supabase } from './supabase';
 import { Session, User } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 
 export class AuthService {
   /**
@@ -18,8 +18,24 @@ export class AuthService {
 
     if (error) throw error;
     if (!data.user) throw new Error('Sign up failed');
-    
+
     return data.user;
+  }
+
+  /**
+   * Verify email with OTP token
+   */
+  static async verifyOtp(email: string, token: string): Promise<Session> {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'signup',
+    });
+
+    if (error) throw error;
+    if (!data.session) throw new Error('OTP verification failed');
+
+    return data.session;
   }
 
   /**
@@ -33,7 +49,7 @@ export class AuthService {
 
     if (error) throw error;
     if (!data.session) throw new Error('Sign in failed');
-    
+
     return data.session;
   }
 
@@ -79,7 +95,7 @@ export class AuthService {
 
     if (error) throw error;
     if (!data.user) throw new Error('Password update failed');
-    
+
     return data.user;
   }
 
