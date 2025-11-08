@@ -36,7 +36,7 @@ import com.example.hackathonsie_kotlin.data.local.entity.*
         AuthToken::class,
         AppSettings::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(DateConverter::class, EnumConverters::class)

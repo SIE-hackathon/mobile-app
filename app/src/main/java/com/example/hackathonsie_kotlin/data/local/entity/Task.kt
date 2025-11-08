@@ -18,7 +18,7 @@ import java.util.Date
             entity = UserProfile::class,
             parentColumns = ["id"],
             childColumns = ["created_by"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.SET_NULL
         ),
         ForeignKey(
             entity = UserProfile::class,
@@ -76,7 +76,7 @@ data class Task(
     val dueDate: Date? = null,
     
     @ColumnInfo(name = "created_by")
-    val createdBy: String,
+    val createdBy: String?,
     
     @ColumnInfo(name = "assigned_to_user")
     val assignedToUser: String? = null,

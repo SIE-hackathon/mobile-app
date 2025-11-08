@@ -2,10 +2,13 @@ package com.example.hackathonsie_kotlin.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,56 +24,46 @@ fun TaskListScreen(
     onCreateTask: () -> Unit,
     onFilterChange: (TaskStatus?) -> Unit,
     onSearchQuery: (String) -> Unit,
+    onStatusChange: (Task, TaskStatus) -> Unit = { _, _ -> },
+    onRefresh: () -> Unit = {},
+    isRefreshing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf<TaskStatus?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Tasks") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onCreateTask,
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Create Task")
-            }
-        }
-    ) { paddingValues ->
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier
+    ) {
         Column(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(top = 16.dp)
         ) {
-            // Search bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    onSearchQuery(it)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                placeholder = { Text("Search tasks...") },
-                singleLine = true
-            )
+        // Search bar
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = {
+                searchQuery = it
+                onSearchQuery(it)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            placeholder = { Text("Search tasks...") },
+            singleLine = true
+        )
 
-            // Filter chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+        // Filter chips
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
                 FilterChip(
                     selected = selectedFilter == null,
                     onClick = {
@@ -79,45 +72,49 @@ fun TaskListScreen(
                     },
                     label = { Text("All") }
                 )
-                
-                TaskStatus.values().forEach { status ->
-                    FilterChip(
-                        selected = selectedFilter == status,
-                        onClick = {
-                            selectedFilter = status
-                            onFilterChange(status)
-                        },
-                        label = { Text(status.name.replace("_", " ")) }
-                    )
-                }
             }
+            
+            items(TaskStatus.values()) { status ->
+                FilterChip(
+                    selected = selectedFilter == status,
+                    onClick = {
+                        selectedFilter = status
+                        onFilterChange(status)
+                    },
+                    label = { Text(status.name.replace("_", " ")) }
+                )
+            }
+        }
 
-            // Task list
-            if (tasks.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No tasks found",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+        // Task list
+        if (tasks.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No tasks found",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(tasks, key = { it.id }) { task ->
+                    TaskCard(
+                        task = task,
+                        onClick = { onTaskClick(task) },
+                        onStatusChange = { newStatus ->
+                            onStatusChange(task, newStatus)
+                        }
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(tasks, key = { it.id }) { task ->
-                        TaskCard(
-                            task = task,
-                            onClick = { onTaskClick(task) }
-                        )
-                    }
-                }
             }
+        }
         }
     }
 }
@@ -126,6 +123,7 @@ fun TaskListScreen(
 fun TaskCard(
     task: Task,
     onClick: () -> Unit,
+    onStatusChange: (TaskStatus) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -140,12 +138,44 @@ fun TaskCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Title
-            Text(
-                text = task.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Title and status change button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Status change button
+                IconButton(
+                    onClick = {
+                        // Cycle through statuses: TODO -> IN_PROGRESS -> REVIEW -> DONE -> TODO
+                        val nextStatus = when (task.status) {
+                            TaskStatus.TODO -> TaskStatus.IN_PROGRESS
+                            TaskStatus.IN_PROGRESS -> TaskStatus.REVIEW
+                            TaskStatus.REVIEW -> TaskStatus.DONE
+                            TaskStatus.DONE -> TaskStatus.TODO
+                        }
+                        onStatusChange(nextStatus)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Change status",
+                        tint = when (task.status) {
+                            TaskStatus.TODO -> MaterialTheme.colorScheme.secondary
+                            TaskStatus.IN_PROGRESS -> MaterialTheme.colorScheme.primary
+                            TaskStatus.REVIEW -> MaterialTheme.colorScheme.tertiary
+                            TaskStatus.DONE -> MaterialTheme.colorScheme.outline
+                        }
+                    )
+                }
+            }
             
             Spacer(modifier = Modifier.height(8.dp))
             
@@ -191,7 +221,7 @@ fun TaskCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     LinearProgressIndicator(
-                        progress = task.progress / 100f,
+                        progress = { task.progress / 100f },
                         modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(8.dp))

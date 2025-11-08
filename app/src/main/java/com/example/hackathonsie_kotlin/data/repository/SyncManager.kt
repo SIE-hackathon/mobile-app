@@ -10,7 +10,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.JsonElement
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 class SyncManager(private val database: AppDatabase) {
 
@@ -81,12 +84,12 @@ class SyncManager(private val database: AppDatabase) {
         }
         
         when (operation.entityType) {
-            "user_profile" -> SupabaseClient.client.from("user_profile").insert(payload)
-            "group" -> SupabaseClient.client.from("group").insert(payload)
-            "task" -> SupabaseClient.client.from("task").insert(payload)
-            "group_member" -> SupabaseClient.client.from("group_member").insert(payload)
-            "task_assignment" -> SupabaseClient.client.from("task_assignment").insert(payload)
-            "activity_log" -> SupabaseClient.client.from("activity_log").insert(payload)
+            "user_profile" -> SupabaseClient.client.from("user_profiles").insert(payload)
+            "group" -> SupabaseClient.client.from("groups").insert(payload)
+            "task" -> SupabaseClient.client.from("tasks").insert(payload)
+            "group_member" -> SupabaseClient.client.from("group_members").insert(payload)
+            "task_assignment" -> SupabaseClient.client.from("task_assignments").insert(payload)
+            "activity_log" -> SupabaseClient.client.from("activity_logs").insert(payload)
         }
     }
 
@@ -104,7 +107,7 @@ class SyncManager(private val database: AppDatabase) {
         
         when (operation.entityType) {
             "user_profile" -> {
-                SupabaseClient.client.from("user_profile")
+                SupabaseClient.client.from("user_profiles")
                     .update(payload) {
                         filter {
                             eq("id", operation.entityId)
@@ -112,7 +115,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "group" -> {
-                SupabaseClient.client.from("group")
+                SupabaseClient.client.from("groups")
                     .update(payload) {
                         filter {
                             eq("id", operation.entityId)
@@ -120,7 +123,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "task" -> {
-                SupabaseClient.client.from("task")
+                SupabaseClient.client.from("tasks")
                     .update(payload) {
                         filter {
                             eq("id", operation.entityId)
@@ -128,7 +131,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "group_member" -> {
-                SupabaseClient.client.from("group_member")
+                SupabaseClient.client.from("group_members")
                     .update(payload) {
                         filter {
                             eq("id", operation.entityId)
@@ -136,7 +139,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "task_assignment" -> {
-                SupabaseClient.client.from("task_assignment")
+                SupabaseClient.client.from("task_assignments")
                     .update(payload) {
                         filter {
                             eq("id", operation.entityId)
@@ -144,7 +147,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "activity_log" -> {
-                SupabaseClient.client.from("activity_log")
+                SupabaseClient.client.from("activity_logs")
                     .update(payload) {
                         filter {
                             eq("id", operation.entityId)
@@ -160,7 +163,7 @@ class SyncManager(private val database: AppDatabase) {
     private suspend fun pushDelete(operation: SyncQueue) {
         when (operation.entityType) {
             "user_profile" -> {
-                SupabaseClient.client.from("user_profile")
+                SupabaseClient.client.from("user_profiles")
                     .delete {
                         filter {
                             eq("id", operation.entityId)
@@ -168,7 +171,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "group" -> {
-                SupabaseClient.client.from("group")
+                SupabaseClient.client.from("groups")
                     .delete {
                         filter {
                             eq("id", operation.entityId)
@@ -176,7 +179,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "task" -> {
-                SupabaseClient.client.from("task")
+                SupabaseClient.client.from("tasks")
                     .delete {
                         filter {
                             eq("id", operation.entityId)
@@ -184,7 +187,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "group_member" -> {
-                SupabaseClient.client.from("group_member")
+                SupabaseClient.client.from("group_members")
                     .delete {
                         filter {
                             eq("id", operation.entityId)
@@ -192,7 +195,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "task_assignment" -> {
-                SupabaseClient.client.from("task_assignment")
+                SupabaseClient.client.from("task_assignments")
                     .delete {
                         filter {
                             eq("id", operation.entityId)
@@ -200,7 +203,7 @@ class SyncManager(private val database: AppDatabase) {
                     }
             }
             "activity_log" -> {
-                SupabaseClient.client.from("activity_log")
+                SupabaseClient.client.from("activity_logs")
                     .delete {
                         filter {
                             eq("id", operation.entityId)
@@ -234,7 +237,7 @@ class SyncManager(private val database: AppDatabase) {
     private suspend fun pullUserProfiles() {
         try {
             val profiles = SupabaseClient.client
-                .from("user_profile")
+                .from("user_profiles")
                 .select()
                 .decodeList<Map<String, Any?>>()
             
@@ -263,7 +266,7 @@ class SyncManager(private val database: AppDatabase) {
     private suspend fun pullGroups() {
         try {
             val groups = SupabaseClient.client
-                .from("group")
+                .from("groups")
                 .select()
                 .decodeList<Map<String, Any?>>()
             
@@ -293,7 +296,7 @@ class SyncManager(private val database: AppDatabase) {
     private suspend fun pullGroupMembers() {
         try {
             val members = SupabaseClient.client
-                .from("group_member")
+                .from("group_members")
                 .select()
                 .decodeList<Map<String, Any?>>()
             
@@ -327,7 +330,7 @@ class SyncManager(private val database: AppDatabase) {
     private suspend fun pullTasks() {
         try {
             val tasks = SupabaseClient.client
-                .from("task")
+                .from("tasks")
                 .select()
                 .decodeList<Map<String, Any?>>()
             
@@ -381,7 +384,7 @@ class SyncManager(private val database: AppDatabase) {
     private suspend fun pullTaskAssignments() {
         try {
             val assignments = SupabaseClient.client
-                .from("task_assignment")
+                .from("task_assignments")
                 .select()
                 .decodeList<Map<String, Any?>>()
             
@@ -417,7 +420,7 @@ class SyncManager(private val database: AppDatabase) {
     private suspend fun pullActivityLogs() {
         try {
             val logs = SupabaseClient.client
-                .from("activity_log")
+                .from("activity_logs")
                 .select()
                 .decodeList<Map<String, Any?>>()
             
@@ -451,13 +454,20 @@ class SyncManager(private val database: AppDatabase) {
 
     /**
      * Helper function to parse ISO 8601 date string to Date object
+     * Compatible with API level 24+
      */
     private fun parseDate(dateString: String?): Date {
         return dateString?.let {
             try {
-                val instant = java.time.Instant.parse(it)
-                Date(instant.toEpochMilli())
+                // ISO 8601 format parser
+                val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }
+                // Handle both with and without milliseconds and timezone
+                val cleanDate = it.replace("Z", "").substringBefore(".")
+                format.parse(cleanDate) ?: Date()
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse date: $dateString", e)
                 Date()
             }
         } ?: Date()
