@@ -68,6 +68,19 @@ export class TaskService {
       .single();
 
     if (error) throw error;
+
+    // Log task creation
+    await supabase.from('activity_logs').insert({
+      task_id: data.id,
+      user_id: user.id,
+      action: 'task_created',
+      new_value: JSON.stringify({
+        title: data.title,
+        status: data.status,
+        priority: data.priority,
+      }),
+    });
+
     return data;
   }
 
@@ -90,7 +103,29 @@ export class TaskService {
    * Update task status
    */
   static async updateTaskStatus(taskId: string, status: TaskStatus): Promise<Task> {
-    return this.updateTask(taskId, { status });
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Get old status first
+    const { data: oldTask } = await supabase
+      .from('tasks')
+      .select('status')
+      .eq('id', taskId)
+      .single();
+
+    const result = await this.updateTask(taskId, { status });
+
+    // Log status change
+    if (oldTask && oldTask.status !== status) {
+      await supabase.from('activity_logs').insert({
+        task_id: taskId,
+        user_id: user?.id,
+        action: 'status_changed',
+        old_value: JSON.stringify({ status: oldTask.status }),
+        new_value: JSON.stringify({ status }),
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -104,6 +139,28 @@ export class TaskService {
    * Delete a task
    */
   static async deleteTask(taskId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Get task info before deleting
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('title, status')
+      .eq('id', taskId)
+      .single();
+
+    // Log deletion
+    if (task) {
+      await supabase.from('activity_logs').insert({
+        task_id: taskId,
+        user_id: user?.id,
+        action: 'task_deleted',
+        old_value: {
+          title: task.title,
+          status: task.status,
+        },
+      });
+    }
+
     const { error } = await supabase
       .from('tasks')
       .delete()

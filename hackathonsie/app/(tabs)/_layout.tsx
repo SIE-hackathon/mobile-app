@@ -23,17 +23,17 @@ export default function TabsLayout() {
   return (
     <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen 
-        name="tasks" 
+        name="dashboard" 
         options={{ 
-          title: 'Tasks',
-          tabBarIcon: () => <Text>📋</Text>,
+          title: 'Dashboard',
+          tabBarIcon: () => <Text>�</Text>,
         }} 
       />
       <Tabs.Screen 
         name="kanban" 
         options={{ 
           title: 'Kanban',
-          tabBarIcon: () => <Text>📊</Text>,
+          tabBarIcon: () => <Text>�</Text>,
         }} 
       />
       <Tabs.Screen 

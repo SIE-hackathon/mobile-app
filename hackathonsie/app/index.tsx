@@ -15,7 +15,7 @@ export default function Index() {
   // React to session changes
   useEffect(() => {
     if (!loading && session) {
-      router.replace('/(tabs)/tasks' as any);
+      router.replace('/(tabs)/dashboard' as any);
     }
   }, [session, loading]);
 
@@ -26,7 +26,7 @@ export default function Index() {
 
   // If authenticated, redirect to tasks
   if (session) {
-    return <Redirect href="/(tabs)/tasks" />;
+    return <Redirect href="/(tabs)/dashboard" />;
   }
 
   // Show landing page if not authenticated

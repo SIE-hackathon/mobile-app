@@ -1,8 +1,8 @@
 /**
- * Task List Screen
+ * Dashboard Screen
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,14 +23,46 @@ import { PRIORITY_COLORS } from '../constants';
 import { formatDate, isOverdue } from '../utils/date.utils';
 import SettingsDropdown from '../components/SettingsDropdown';
 import StatusDropdown from '../components/StatusDropdown';
+import { supabase } from '../services/supabase';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
-export default function TaskListScreen() {
+interface DashboardStats {
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  overdueTasks: number;
+}
+
+export default function DashboardScreen() {
   const { tasks, loading, fetchTasks, updateTaskStatus, deleteTask } = useTasks();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalTasks: 0,
+    completedTasks: 0,
+    inProgressTasks: 0,
+    overdueTasks: 0,
+  });
+
+  useEffect(() => {
+    calculateStats();
+  }, [tasks]);
+
+  const calculateStats = () => {
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.status === 'done').length;
+    const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+    const overdue = tasks.filter(t => t.due_date && isOverdue(t.due_date) && t.status !== 'done').length;
+
+    setStats({
+      totalTasks: total,
+      completedTasks: completed,
+      inProgressTasks: inProgress,
+      overdueTasks: overdue,
+    });
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -106,7 +138,11 @@ export default function TaskListScreen() {
     const overdue = isOverdue(item.due_date);
 
     return (
-      <View style={styles.taskCard}>
+      <TouchableOpacity 
+        style={styles.taskCard}
+        onPress={() => router.push(`/task-details?taskId=${item.id}`)}
+        activeOpacity={0.7}
+      >
         <View style={styles.taskHeader}>
           <Text style={styles.taskTitle} numberOfLines={1}>
             {item.title}
@@ -137,16 +173,19 @@ export default function TaskListScreen() {
           </View>
           
           {item.due_date && (
-            <Text style={[styles.dueDate, overdue && styles.overdue]}>
-              Due: {formatDate(item.due_date)}
-            </Text>
+            <View style={styles.dueDateContainer}>
+              <Text style={styles.calendarIcon}>📅</Text>
+              <Text style={[styles.dueDate, overdue && styles.overdue]}>
+                {formatDate(item.due_date)}
+              </Text>
+            </View>
           )}
 
           {item.progress > 0 && (
             <Text style={styles.progress}>{item.progress}%</Text>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -161,12 +200,37 @@ export default function TaskListScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Tasks</Text>
+        <Text style={styles.headerTitle}>Dashboard</Text>
         <SettingsDropdown
           onProfilePress={handleProfilePress}
           onThemePress={handleThemePress}
           onLogoutPress={handleLogout}
         />
+      </View>
+
+      {/* Statistics Cards */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{stats.totalTasks}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.successCard]}>
+            <Text style={[styles.statNumber, styles.successColor]}>{stats.completedTasks}</Text>
+            <Text style={styles.statLabel}>Completed</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.primaryCard]}>
+            <Text style={[styles.statNumber, styles.primaryColor]}>{stats.inProgressTasks}</Text>
+            <Text style={styles.statLabel}>In Progress</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.dangerCard]}>
+            <Text style={[styles.statNumber, styles.dangerColor]}>{stats.overdueTasks}</Text>
+            <Text style={styles.statLabel}>Overdue</Text>
+          </View>
+        </View>
       </View>
       
       <FlatList
@@ -298,9 +362,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
   },
+  dueDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  calendarIcon: {
+    fontSize: 13,
+  },
   dueDate: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#666',
+    fontWeight: '500',
   },
   overdue: {
     color: '#EF4444',
@@ -314,5 +387,60 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#999',
+  },
+  statsContainer: {
+    backgroundColor: '#fff',
+    padding: 15,
+    marginHorizontal: 15,
+    marginTop: 15,
+    marginBottom: 10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: '47%',
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  successCard: {
+    backgroundColor: '#d1fae5',
+  },
+  primaryCard: {
+    backgroundColor: '#dbeafe',
+  },
+  dangerCard: {
+    backgroundColor: '#fee2e2',
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 4,
+  },
+  successColor: {
+    color: '#059669',
+  },
+  primaryColor: {
+    color: '#2563eb',
+  },
+  dangerColor: {
+    color: '#dc2626',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
 });

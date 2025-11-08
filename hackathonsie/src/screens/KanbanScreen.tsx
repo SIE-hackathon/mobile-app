@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, StatusBar, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useTasks } from '../hooks/useTasks';
 import { Task, TaskStatus } from '../types/database.types';
 import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
@@ -20,6 +21,7 @@ const STATUS_COLUMNS: { status: TaskStatus; label: string }[] = [
 ];
 
 export default function KanbanScreen() {
+  const router = useRouter();
   const { tasks, loading, fetchTasks, updateTaskStatus } = useTasks();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TaskStatus>('todo');
@@ -34,17 +36,9 @@ export default function KanbanScreen() {
     return tasks.filter(task => task.status === status);
   };
 
-  const handleTaskPress = async (task: Task) => {
-    // Cycle through statuses when tapped
-    const statusOrder: TaskStatus[] = ['todo', 'in_progress', 'review', 'done'];
-    const currentIndex = statusOrder.indexOf(task.status);
-    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length];
-    
-    try {
-      await updateTaskStatus(task.id, nextStatus);
-    } catch (error) {
-      console.error('Error updating task status:', error);
-    }
+  const handleTaskPress = (task: Task) => {
+    // Navigate to task details
+    router.push(`/task-details?taskId=${task.id}`);
   };
 
   const renderTask = (task: Task) => {

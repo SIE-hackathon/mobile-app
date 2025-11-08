@@ -16,7 +16,7 @@ export type ActivityAction =
   | 'group_created' 
   | 'group_updated' 
   | 'member_added' 
-  | 'member_removed' 
+  | 'member_removed'  
   | 'role_changed';
 export type AssignmentType = 'manual' | 'auto' | 'reassign';
 export type SyncStatus = 'pending' | 'synced' | 'conflict';

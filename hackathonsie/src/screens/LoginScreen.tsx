@@ -23,8 +23,8 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signIn(email, password);
-      // Navigate to tasks after successful login
-      router.replace('/(tabs)/tasks' as any);
+      // Navigate to dashboard after successful login
+      router.replace('/(tabs)/dashboard' as any);
     } catch (error: any) {
       Alert.alert('Login Error', error.message);
     } finally {
