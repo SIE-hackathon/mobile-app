@@ -1,15 +1,25 @@
-import { Text, View } from "react-native";
+/**
+ * Index/Landing Page
+ * Entry point - shows landing page or redirects based on auth state
+ */
+
+import { Redirect } from 'expo-router';
+import { useAuth } from '../src/context/AuthContext';
+import LandingScreen from '../src/screens/LandingScreen';
 
 export default function Index() {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Edit app/index.tsx to edit this screen.</Text>
-    </View>
-  );
+  const { session, loading } = useAuth();
+
+  // Show nothing while checking auth state
+  if (loading) {
+    return null;
+  }
+
+  // If authenticated, redirect to tasks
+  if (session) {
+    return <Redirect href="/(tabs)/tasks" />;
+  }
+
+  // Show landing page if not authenticated
+  return <LandingScreen />;
 }
