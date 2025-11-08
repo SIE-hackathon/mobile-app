@@ -6,13 +6,13 @@
 import React, { useState } from 'react';
 import {
   Modal,
-  View,
-  Text,
   StyleSheet,
-  TouchableOpacity,
+  Text,
   TextInput,
-  SafeAreaView,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface AddGroupDialogProps {
   visible: boolean;

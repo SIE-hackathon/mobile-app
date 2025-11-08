@@ -16,13 +16,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { supabase } from '../services/supabase';
-import { BackendAPI, ActivityLogResponse } from '../services/backend-api.service';
-import { Task, ActivityLog, ActivityAction } from '../types/database.types';
-import StatusDropdown from '../components/StatusDropdown';
-import EditTaskDialog from '../components/EditTaskDialog';
 import AssignTaskDialog from '../components/AssignTaskDialog';
+import EditTaskDialog from '../components/EditTaskDialog';
+import StatusDropdown from '../components/StatusDropdown';
 import { useAuth } from '../context/AuthContext';
+import { ActivityLogResponse, BackendAPI } from '../services/backend-api.service';
+import { supabase } from '../services/supabase';
+import { ActivityAction, ActivityLog, Task } from '../types/database.types';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
@@ -110,7 +110,7 @@ export default function TaskDetailsScreen() {
   const fetchActivityLog = async () => {
     try {
       console.log('Fetching activity logs for task:', taskId);
-      
+
       // Try backend API first for enriched data
       try {
         const data = await BackendAPI.getTaskActivityLogs(taskId as string);
@@ -120,7 +120,7 @@ export default function TaskDetailsScreen() {
       } catch (backendError) {
         console.log('Backend API failed, falling back to Supabase:', backendError);
       }
-      
+
       // Fallback to direct Supabase query
       const { data, error } = await supabase
         .from('activity_logs')
@@ -132,7 +132,7 @@ export default function TaskDetailsScreen() {
         console.error('Error fetching activity logs:', error);
         throw error;
       }
-      
+
       console.log('Activity logs received from Supabase:', data?.length || 0, 'entries');
       setActivities(data || []);
     } catch (error) {
@@ -349,7 +349,7 @@ export default function TaskDetailsScreen() {
     const newValue = parseJsonValue(activity.new_value);
 
     // If backend provided user info, use it
-    const userName = ('user' in activity && activity.user?.display_name) || 'Someone';
+    const userName = ('user' in activity && activity.user?.full_name) || 'Someone';
 
     switch (activity.action) {
       case 'status_changed':
@@ -373,7 +373,7 @@ export default function TaskDetailsScreen() {
         if (newValue?.due_date !== undefined && oldValue?.due_date !== newValue?.due_date) {
           changes.push(`due date: ${oldValue?.due_date || 'none'} → ${newValue?.due_date || 'none'}`);
         }
-        return changes.length > 0 
+        return changes.length > 0
           ? changes.join('\n')
           : 'Task details were updated';
       case 'task_assigned':
@@ -386,16 +386,16 @@ export default function TaskDetailsScreen() {
         } else if (newValue?.assigned_to_group) {
           return 'Assigned to a group';
         } else {
-          return oldValue?.assigned_to_user || oldValue?.assigned_to_group 
-            ? 'Task unassigned' 
+          return oldValue?.assigned_to_user || oldValue?.assigned_to_group
+            ? 'Task unassigned'
             : 'Assignment changed';
         }
       case 'task_created':
-        return newValue?.title 
+        return newValue?.title
           ? `Task created with title: "${newValue.title}"${newValue.priority ? `\nPriority: ${newValue.priority}` : ''}${newValue.status ? `\nStatus: ${newValue.status}` : ''}`
           : 'Task was created';
       case 'task_deleted':
-        return oldValue?.title 
+        return oldValue?.title
           ? `Task deleted: "${oldValue.title}"${oldValue.status ? `\nWas in status: ${oldValue.status}` : ''}`
           : 'Task was deleted';
       default:
@@ -571,7 +571,7 @@ export default function TaskDetailsScreen() {
                     {/* Show user who performed the action if available */}
                     {'user' in activity && activity.user && (
                       <Text style={styles.activityUser}>
-                        by {activity.user.display_name || 'Unknown'}
+                        by {activity.user.full_name || 'Unknown'}
                       </Text>
                     )}
                     <Text style={styles.activityTime}>

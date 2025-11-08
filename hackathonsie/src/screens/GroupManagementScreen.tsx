@@ -6,25 +6,24 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-  FlatList,
   Alert,
-  SafeAreaView,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import { isSuperAdmin } from '../utils/auth.utils';
-import { Group, GroupMember } from '../types/database.types';
-import { GroupService } from '../services/group.service';
-import { UserService, UserProfile } from '../services/user.service';
-import { AdminService } from '../services/admin.service';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AddGroupDialog from '../components/AddGroupDialog';
 import EditGroupDialog from '../components/EditGroupDialog';
 import ManageGroupMembersDialog from '../components/ManageGroupMembersDialog';
+import { useAuth } from '../context/AuthContext';
+import { AdminService } from '../services/admin.service';
+import { GroupService } from '../services/group.service';
+import { UserProfile, UserService } from '../services/user.service';
+import { Group, GroupMember } from '../types/database.types';
 
 interface GroupWithMemberCount extends Group {
   memberCount: number;
@@ -45,39 +44,30 @@ export default function GroupManagementScreen() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showMembersDialog, setShowMembersDialog] = useState(false);
 
-  // Check if user is super-admin by fetching from database
+  // Check if user is super-admin using JWT metadata
   useEffect(() => {
     const checkAdmin = async () => {
       setCheckingAdmin(true);
-      
+
       console.log('=== GroupManagementScreen Debug ===');
       console.log('authLoading:', authLoading);
-      console.log('user:', user);
-      console.log('user.user_metadata:', user?.user_metadata);
-      console.log('typeof user.user_metadata:', typeof user?.user_metadata);
-      
-      if (user?.id) {
-        // First try the JWT metadata
-        const jwtIsAdmin = isSuperAdmin(user);
-        console.log('JWT isSuperAdmin:', jwtIsAdmin);
-        
-        // Then check the database
-        const dbIsAdmin = await AdminService.checkIsSuperAdmin(user.id);
-        console.log('Database isSuperAdmin:', dbIsAdmin);
-        
-        setIsAdmin(dbIsAdmin);
+      console.log('user:', user?.email);
+
+      if (user) {
+        // Use JWT metadata - no database query needed
+        const isAdmin = AdminService.checkIsSuperAdmin(user);
+        console.log('Is Super Admin:', isAdmin);
+        setIsAdmin(isAdmin);
       } else {
         setIsAdmin(false);
       }
-      
+
       console.log('===================================');
       setCheckingAdmin(false);
     };
 
-    if (!authLoading && user) {
+    if (!authLoading) {
       checkAdmin();
-    } else if (authLoading) {
-      setCheckingAdmin(true);
     }
   }, [user, authLoading]);
 
@@ -98,6 +88,9 @@ export default function GroupManagementScreen() {
         GroupService.fetchUserGroups(),
         UserService.fetchAllUsers(),
       ]);
+
+      console.log('[GroupManagementScreen] Loaded users:', usersData);
+      console.log('[GroupManagementScreen] Users count:', usersData.length);
 
       // Get member counts for each group
       const groupsWithCounts = await Promise.all(
@@ -184,15 +177,18 @@ export default function GroupManagementScreen() {
     try {
       setSelectedGroup(group);
       const members = await GroupService.fetchGroupMembers(group.id);
+      console.log('[GroupManagementScreen] Fetched members:', members);
 
       // Enrich members with user data
       const enrichedMembers = await Promise.all(
         members.map(async (member) => {
           const userProfile = await UserService.getUserProfile(member.user_id);
+          console.log(`[GroupManagementScreen] User profile for ${member.user_id}:`, userProfile);
           return { ...member, user: userProfile || undefined };
         })
       );
 
+      console.log('[GroupManagementScreen] Enriched members:', enrichedMembers);
       setGroupMembers(enrichedMembers as any);
       setShowMembersDialog(true);
     } catch (error) {

@@ -3,16 +3,16 @@
  * Modal dialog for editing existing groups
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
-  View,
-  Text,
   StyleSheet,
-  TouchableOpacity,
+  Text,
   TextInput,
-  SafeAreaView,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Group } from '../types/database.types';
 
 interface EditGroupDialogProps {

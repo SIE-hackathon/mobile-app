@@ -5,19 +5,19 @@
 
 import React, { useState } from 'react';
 import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  ScrollView,
-  TextInput,
   FlatList,
+  Modal,
   Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Group, GroupMember, GroupMemberRole } from '../types/database.types';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserProfile } from '../services/user.service';
+import { Group, GroupMember, GroupMemberRole } from '../types/database.types';
 
 interface ManageGroupMembersDialogProps {
   visible: boolean;
@@ -56,7 +56,7 @@ export default function ManageGroupMembersDialog({
 
   const filteredUsers = availableUsers.filter(
     (user) =>
-      user.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -141,8 +141,8 @@ export default function ManageGroupMembersDialog({
                       onPress={() => handleAddMember(user.id)}
                     >
                       <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{user.display_name || user.email}</Text>
-                        {user.email && user.display_name && (
+                        <Text style={styles.userName}>{user.full_name || user.email}</Text>
+                        {user.email && user.full_name && (
                           <Text style={styles.userEmail}>{user.email}</Text>
                         )}
                       </View>
@@ -169,7 +169,7 @@ export default function ManageGroupMembersDialog({
                   <View style={styles.memberCard}>
                     <View style={styles.memberInfo}>
                       <Text style={styles.memberName}>
-                        {member.user?.display_name || member.user?.email || 'Unknown User'}
+                        {member.user?.full_name || member.user?.email || 'Unknown User'}
                       </Text>
                       <Text style={styles.memberEmail}>{member.user?.email}</Text>
                     </View>
@@ -202,7 +202,7 @@ export default function ManageGroupMembersDialog({
                         onPress={() =>
                           onRemoveMember(
                             member.id,
-                            member.user?.display_name || member.user?.email || 'User'
+                            member.user?.full_name || member.user?.email || 'User'
                           )
                         }
                       >

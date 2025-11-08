@@ -12,7 +12,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL || 'https://your-ba
  */
 async function getAuthHeader(): Promise<HeadersInit> {
   const { data: { session } } = await supabase.auth.getSession();
-  
+
   if (!session?.access_token) {
     throw new Error('Not authenticated');
   }
@@ -39,7 +39,7 @@ export interface ActivityLogResponse {
   timestamp: string;
   user?: {
     id: string;
-    display_name?: string;
+    full_name?: string;
     avatar_url?: string;
   };
   task?: {
@@ -60,7 +60,7 @@ export async function getTaskActivityLogs(
   offset: number = 0
 ): Promise<ActivityLogResponse[]> {
   const headers = await getAuthHeader();
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/logs/task/${taskId}?limit=${limit}&offset=${offset}`,
     { headers }
@@ -78,7 +78,7 @@ export async function getTaskActivityLogs(
  */
 export async function getRecentActivity(limit: number = 20): Promise<ActivityLogResponse[]> {
   const headers = await getAuthHeader();
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/logs/recent?limit=${limit}`,
     { headers }
@@ -101,12 +101,12 @@ export async function getUserActivityLogs(
   action?: string
 ): Promise<ActivityLogResponse[]> {
   const headers = await getAuthHeader();
-  
+
   let url = `${API_BASE_URL}/api/logs/user/${userId}?limit=${limit}&offset=${offset}`;
   if (action) {
     url += `&action=${action}`;
   }
-  
+
   const response = await fetch(url, { headers });
 
   if (!response.ok) {
@@ -127,16 +127,16 @@ export async function getAllActivityLogs(
   endDate?: string
 ): Promise<ActivityLogResponse[]> {
   const headers = await getAuthHeader();
-  
+
   const params = new URLSearchParams({
     limit: limit.toString(),
     offset: offset.toString(),
   });
-  
+
   if (action) params.append('action', action);
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/logs/?${params.toString()}`,
     { headers }
@@ -155,7 +155,7 @@ export async function getAllActivityLogs(
 export async function createActivityLog(activity: any): Promise<ActivityLogResponse> {
   try {
     const headers = await getAuthHeader();
-    
+
     const response = await fetch(
       `${API_BASE_URL}/api/logs/`,
       {
@@ -226,7 +226,7 @@ export interface TaskTreeNode {
  */
 export async function getTaskProgress(taskId: string): Promise<ProgressResponse> {
   const headers = await getAuthHeader();
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/progress/${taskId}`,
     { headers }
@@ -247,7 +247,7 @@ export async function getTaskTree(
   includeCalculated: boolean = true
 ): Promise<TaskTreeNode> {
   const headers = await getAuthHeader();
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/progress/${taskId}/tree?include_calculated=${includeCalculated}`,
     { headers }
@@ -268,7 +268,7 @@ export async function updateTaskProgress(
   progress: number
 ): Promise<ProgressResponse> {
   const headers = await getAuthHeader();
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/progress/${taskId}`,
     {
@@ -290,7 +290,7 @@ export async function updateTaskProgress(
  */
 export async function syncTaskProgress(taskId: string): Promise<ProgressResponse> {
   const headers = await getAuthHeader();
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/progress/${taskId}/sync`,
     {
@@ -322,7 +322,7 @@ export interface EncryptResponse {
  */
 export async function generateEncryptionKey(): Promise<{ key: string; algorithm: string }> {
   const headers = await getAuthHeader();
-  
+
   const response = await fetch(
     `${API_BASE_URL}/api/encryption/generate-key`,
     {
@@ -345,13 +345,13 @@ export const BackendAPI = {
   getUserActivityLogs,
   getAllActivityLogs,
   createActivityLog,
-  
+
   // Progress Tracking
   getTaskProgress,
   getTaskTree,
   updateTaskProgress,
   syncTaskProgress,
-  
+
   // Encryption
   generateEncryptionKey,
 };
