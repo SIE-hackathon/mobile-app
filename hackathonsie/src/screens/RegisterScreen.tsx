@@ -2,9 +2,9 @@
  * Register Screen
  */
 
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
 export default function RegisterScreen() {
@@ -35,9 +35,15 @@ export default function RegisterScreen() {
       setLoading(true);
       await signUp(email, password);
       Alert.alert(
-        'Success',
-        'Account created successfully! Please check your email to verify your account.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login' as any) }]
+        'Check Your Email',
+        'We sent a 6-digit verification code to your email.',
+        [{
+          text: 'OK',
+          onPress: () => router.push({
+            pathname: '/(auth)/verify-email',
+            params: { email }
+          } as any)
+        }]
       );
     } catch (error: any) {
       Alert.alert('Registration Error', error.message);
