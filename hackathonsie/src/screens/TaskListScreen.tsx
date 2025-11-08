@@ -17,11 +17,13 @@ import { useRouter } from 'expo-router';
 import { useTasks } from '../hooks/useTasks';
 import { useAuth } from '../context/AuthContext';
 import { Task, TaskStatus } from '../types/database.types';
-import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
+import { PRIORITY_COLORS } from '../constants';
 import { formatDate, isOverdue } from '../utils/date.utils';
+import SettingsDropdown from '../components/SettingsDropdown';
+import StatusDropdown from '../components/StatusDropdown';
 
 export default function TaskListScreen() {
-  const { tasks, loading, fetchTasks, updateTaskStatus } = useTasks();
+  const { tasks, loading, fetchTasks, updateTaskStatus, deleteTask } = useTasks();
   const { signOut } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -32,35 +34,109 @@ export default function TaskListScreen() {
     setRefreshing(false);
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/' as any);
-            } catch (error: any) {
-              Alert.alert('Error', 'Failed to log out');
-            }
-          },
-        },
-      ]
-    );
+  const handleProfilePress = () => {
+    router.push('/(tabs)/profile' as any);
   };
 
-  const handleStatusChange = async (taskId: string, currentStatus: TaskStatus) => {
-    const statusOrder: TaskStatus[] = ['todo', 'in_progress', 'review', 'done'];
-    const currentIndex = statusOrder.indexOf(currentStatus);
-    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length];
+  const handleThemePress = () => {
+    // Use window.alert for web, Alert for native
+    if (typeof window !== 'undefined') {
+      window.alert('Theme settings coming soon!');
+    } else {
+      Alert.alert('Coming Soon', 'Theme settings will be available soon!');
+    }
+  };
+
+  const handleLogout = async () => {
+    console.log('Logout button pressed');
     
+    // Use window.confirm for web, Alert for native
+    const isWeb = typeof window !== 'undefined';
+    const shouldLogout = isWeb 
+      ? window.confirm('Are you sure you want to log out?')
+      : true;
+    
+    if (isWeb && !shouldLogout) {
+      console.log('Logout cancelled');
+      return;
+    }
+
+    if (!isWeb) {
+      Alert.alert(
+        'Log Out',
+        'Are you sure you want to log out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Log Out',
+            style: 'destructive',
+            onPress: () => performLogout(),
+          },
+        ]
+      );
+    } else {
+      await performLogout();
+    }
+  };
+
+  const performLogout = async () => {
+    console.log('Logout confirmed');
     try {
-      await updateTaskStatus(taskId, nextStatus);
+      console.log('Calling signOut...');
+      await signOut();
+      console.log('SignOut complete, navigating...');
+      router.replace('/' as any);
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      if (typeof window !== 'undefined') {
+        window.alert('Failed to log out: ' + error.message);
+      } else {
+        Alert.alert('Error', 'Failed to log out');
+      }
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    const isWeb = typeof window !== 'undefined';
+    const shouldDelete = isWeb 
+      ? window.confirm(`Delete "${taskTitle}"?`)
+      : true;
+    
+    if (isWeb && !shouldDelete) {
+      return;
+    }
+
+    if (!isWeb) {
+      Alert.alert(
+        'Delete Task',
+        `Are you sure you want to delete "${taskTitle}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await deleteTask(taskId);
+              } catch (error: any) {
+                Alert.alert('Error', 'Failed to delete task');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      try {
+        await deleteTask(taskId);
+      } catch (error: any) {
+        window.alert('Failed to delete task: ' + error.message);
+      }
+    }
+  };
+
+  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+    try {
+      await updateTaskStatus(taskId, newStatus);
     } catch (error) {
       console.error('Error updating task status:', error);
     }
@@ -70,17 +146,23 @@ export default function TaskListScreen() {
     const overdue = isOverdue(item.due_date);
 
     return (
-      <TouchableOpacity style={styles.taskCard}>
+      <View style={styles.taskCard}>
         <View style={styles.taskHeader}>
           <Text style={styles.taskTitle} numberOfLines={1}>
             {item.title}
           </Text>
-          <TouchableOpacity
-            style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[item.status] }]}
-            onPress={() => handleStatusChange(item.id, item.status)}
-          >
-            <Text style={styles.statusText}>{item.status.replace('_', ' ')}</Text>
-          </TouchableOpacity>
+          <View style={styles.taskActions}>
+            <StatusDropdown 
+              currentStatus={item.status}
+              onStatusChange={(newStatus) => handleStatusChange(item.id, newStatus)}
+            />
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteTask(item.id, item.title)}
+            >
+              <Text style={styles.deleteIcon}>🗑</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {item.description && (
@@ -104,7 +186,7 @@ export default function TaskListScreen() {
             <Text style={styles.progress}>{item.progress}%</Text>
           )}
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -120,9 +202,11 @@ export default function TaskListScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Tasks</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
+        <SettingsDropdown
+          onProfilePress={handleProfilePress}
+          onThemePress={handleThemePress}
+          onLogoutPress={handleLogout}
+        />
       </View>
       
       <FlatList
@@ -163,14 +247,16 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   logoutButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  logoutText: {
+  logoutIcon: {
     color: '#FF3B30',
-    fontSize: 14,
+    fontSize: 24,
     fontWeight: '600',
   },
   centered: {
@@ -202,6 +288,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     marginRight: 10,
+  },
+  taskActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteIcon: {
+    fontSize: 16,
   },
   statusBadge: {
     paddingHorizontal: 12,

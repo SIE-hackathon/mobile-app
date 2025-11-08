@@ -20,12 +20,26 @@ export default function TabsLayout() {
   }
 
   return (
-    <Tabs>
+    <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen 
         name="tasks" 
         options={{ 
           title: 'Tasks',
-          headerShown: true
+          tabBarIcon: () => '📋',
+        }} 
+      />
+      <Tabs.Screen 
+        name="kanban" 
+        options={{ 
+          title: 'Kanban',
+          tabBarIcon: () => '📊',
+        }} 
+      />
+      <Tabs.Screen 
+        name="profile" 
+        options={{ 
+          title: 'Profile',
+          tabBarIcon: () => '👤',
         }} 
       />
     </Tabs>
