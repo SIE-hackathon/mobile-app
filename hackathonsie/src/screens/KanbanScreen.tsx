@@ -3,12 +3,12 @@
  * Displays tasks in columns by status with tab navigation
  */
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, StatusBar, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Platform, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { PRIORITY_COLORS, STATUS_COLORS } from '../constants';
 import { useTasks } from '../hooks/useTasks';
 import { Task, TaskStatus } from '../types/database.types';
-import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
 import { formatDate, isOverdue } from '../utils/date.utils';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
@@ -45,7 +45,7 @@ export default function KanbanScreen() {
     const overdue = isOverdue(task.due_date);
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         key={task.id}
         style={styles.taskCard}
         onPress={() => handleTaskPress(task)}
@@ -106,7 +106,7 @@ export default function KanbanScreen() {
         {STATUS_COLUMNS.map(({ status, label }) => {
           const taskCount = getTasksByStatus(status).length;
           const isActive = activeTab === status;
-          
+
           return (
             <TouchableOpacity
               key={status}

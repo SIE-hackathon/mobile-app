@@ -3,25 +3,25 @@
  * Shows full task information and activity timeline
  */
 
-import React, { useState, useEffect } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
   Alert,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../services/supabase';
-import { Task, ActivityLog, ActivityAction } from '../types/database.types';
-import StatusDropdown from '../components/StatusDropdown';
-import EditTaskDialog from '../components/EditTaskDialog';
 import AssignTaskDialog from '../components/AssignTaskDialog';
+import EditTaskDialog from '../components/EditTaskDialog';
+import StatusDropdown from '../components/StatusDropdown';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabase';
+import { ActivityAction, ActivityLog, Task } from '../types/database.types';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
@@ -63,6 +63,7 @@ export default function TaskDetailsScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams();
   const taskId = Array.isArray(params.taskId) ? params.taskId[0] : params.taskId;
+
   const [task, setTask] = useState<Task | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,10 +86,21 @@ export default function TaskDetailsScreen() {
         .eq('id', taskId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Task was deleted or not found
+        if (error.code === 'PGRST116') {
+          console.log('Task was deleted');
+          Alert.alert('Task Deleted', 'This task has been deleted.', [
+            { text: 'OK', onPress: () => router.back() }
+          ]);
+          return;
+        }
+        throw error;
+      }
       setTask(data);
     } catch (error) {
       console.error('Error fetching task:', error);
+      Alert.alert('Error', 'Failed to load task details');
     } finally {
       setLoading(false);
     }
@@ -107,7 +119,7 @@ export default function TaskDetailsScreen() {
         console.error('Error fetching activity logs:', error);
         throw error;
       }
-      
+
       console.log('Activity logs received:', data?.length || 0, 'entries');
       console.log('Activity data:', JSON.stringify(data, null, 2));
       setActivities(data || []);
@@ -153,20 +165,21 @@ export default function TaskDetailsScreen() {
 
       if (error) throw error;
 
-      // Log the update
-      await supabase.from('activity_logs').insert({
-        task_id: task.id,
-        user_id: user?.id,
-        action: 'task_updated',
-        old_value: JSON.stringify({
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          progress: task.progress,
-          due_date: task.due_date,
-        }),
-        new_value: JSON.stringify(updates),
-      });
+      // Activity logging disabled - causing enum errors
+      // TODO: Fix activity_action enum in database to match all possible actions
+      // await supabase.from('activity_logs').insert({
+      //   task_id: task.id,
+      //   user_id: user?.id,
+      //   action: 'task_updated',
+      //   old_value: JSON.stringify({
+      //     title: task.title,
+      //     description: task.description,
+      //     priority: task.priority,
+      //     progress: task.progress,
+      //     due_date: task.due_date,
+      //   }),
+      //   new_value: JSON.stringify(updates),
+      // });
 
       setTask({ ...task, ...updates } as Task);
       fetchActivityLog();
@@ -236,17 +249,6 @@ export default function TaskDetailsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Log deletion before deleting
-              await supabase.from('activity_logs').insert({
-                task_id: task.id,
-                user_id: user?.id,
-                action: 'task_deleted',
-                old_value: JSON.stringify({
-                  title: task.title,
-                  status: task.status,
-                }),
-              });
-
               const { error } = await supabase
                 .from('tasks')
                 .delete()
@@ -254,7 +256,10 @@ export default function TaskDetailsScreen() {
 
               if (error) throw error;
 
-              router.back();
+              // Navigate back after successful deletion
+              Alert.alert('Success', 'Task deleted successfully', [
+                { text: 'OK', onPress: () => router.back() }
+              ]);
             } catch (error) {
               console.error('Error deleting task:', error);
               Alert.alert('Error', 'Failed to delete task');
@@ -321,7 +326,7 @@ export default function TaskDetailsScreen() {
         if (newValue?.due_date !== undefined && oldValue?.due_date !== newValue?.due_date) {
           changes.push('due date');
         }
-        return changes.length > 0 
+        return changes.length > 0
           ? `Updated: ${changes.join(', ')}`
           : 'Task details were updated';
       case 'task_assigned':
