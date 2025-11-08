@@ -69,17 +69,21 @@ export class TaskService {
 
     if (error) throw error;
 
-    // Log task creation
-    await supabase.from('activity_logs').insert({
-      task_id: data.id,
-      user_id: user.id,
-      action: 'task_created',
-      new_value: JSON.stringify({
-        title: data.title,
-        status: data.status,
-        priority: data.priority,
-      }),
-    });
+    // Log task creation (catch 403 if RLS not configured)
+    try {
+      await supabase.from('activity_logs').insert({
+        task_id: data.id,
+        user_id: user.id,
+        action: 'task_created',
+        new_value: JSON.stringify({
+          title: data.title,
+          status: data.status,
+          priority: data.priority,
+        }),
+      });
+    } catch (logError) {
+      console.warn('Could not log task creation (check RLS policies):', logError);
+    }
 
     return data;
   }
@@ -114,15 +118,19 @@ export class TaskService {
 
     const result = await this.updateTask(taskId, { status });
 
-    // Log status change
+    // Log status change (catch 403 if RLS not configured)
     if (oldTask && oldTask.status !== status) {
-      await supabase.from('activity_logs').insert({
-        task_id: taskId,
-        user_id: user?.id,
-        action: 'status_changed',
-        old_value: JSON.stringify({ status: oldTask.status }),
-        new_value: JSON.stringify({ status }),
-      });
+      try {
+        await supabase.from('activity_logs').insert({
+          task_id: taskId,
+          user_id: user?.id,
+          action: 'status_changed',
+          old_value: JSON.stringify({ status: oldTask.status }),
+          new_value: JSON.stringify({ status }),
+        });
+      } catch (logError) {
+        console.warn('Could not log status change (check RLS policies):', logError);
+      }
     }
 
     return result;
